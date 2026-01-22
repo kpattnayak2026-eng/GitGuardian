@@ -7,12 +7,11 @@ on:
 jobs:
   scanning:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # good practice for history-aware scans
+          fetch-depth: 0
 
       - name: Install ggshield
         run: pip install --upgrade ggshield
@@ -22,17 +21,23 @@ jobs:
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
-      # CI-aware scan (recommended)
+      # CI-aware scan (useful for pushes/PRs)
       - name: GitGuardian CI scan
         run: ggshield secret scan ci
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
-      # Working tree scan (optional, complements CI)
-      - name: GitGuardian path scan
-        run: ggshield secret scan path .
+      # Working-tree scan (FIX: add --recursive when scanning a directory)
+      - name: GitGuardian path scan (recursive)
+        run: ggshield secret scan path . --recursive
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
+      # Optional: scan entire git history (can be slow on big repos)
+      # - name: GitGuardian full history scan
+      #   run: ggshield secret scan repo .
+      #   env:
+      #     GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
       - name: Show tracked files
-        run: git ls-files | sed -n '1,200p'
+        run: git ls-files | grep -n "secrets.txt" || echo "secrets.txt not tracked"
