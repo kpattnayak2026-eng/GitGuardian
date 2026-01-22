@@ -1,37 +1,63 @@
 
-name: GitGuardian scan
+name: GitGuardian Debug
 
 on:
   workflow_dispatch:
 
 jobs:
-  scanning:
+  ggshield-debug:
     runs-on: ubuntu-latest
-    name: GitGuardian scan
 
     steps:
-      - name: Checkout full history
+      - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install ggshield
-        run: pip install --upgrade ggshield
+      # Show what Git sees (critical: secrets.txt must be tracked)
+      - name: Show tracked files & last commits
+        run: |
+          echo "== Git version =="
+          git --version
+          echo "== Last 5 commits =="
+          git log --oneline -5 || true
+          echo "== Tracked files (first 200) =="
+          git ls-files | sed -n '1,200p'
+          echo "== Is secrets.txt tracked? =="
+          git ls-files | grep -n "^secrets.txt$" || echo "NOT TRACKED"
 
-      - name: API Status
+      - name: Print .gitignore and .gitguardian.yaml if present
+        run: |
+          echo "== .gitignore =="
+          [ -f .gitignore ] && sed -n '1,200p' .gitignore || echo "No .gitignore"
+          echo "== .gitguardian.yaml =="
+          [ -f .gitguardian.yaml ] && sed -n '1,200p' .gitguardian.yaml || echo "No .gitguardian.yaml"
+
+      - name: Install ggshield
+        run: |
+          pip install --upgrade ggshield
+          ggshield --version
+
+      - name: Verify GitGuardian auth
         run: ggshield api-status
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
+      # CI-aware scan (scans the diff/content for this CI run)
       - name: GitGuardian CI scan
-        run: ggshield secret scan ci
+        run: ggshield secret scan ci --verbose
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
-      - name: GitGuardian path scan
-        run: ggshield secret scan path .
-
-      - name: GitGuardian full history scan
-        run: ggshield secret scan repo .
+      # Recursive working-tree scan (what you attempted; now with --recursive and verbosity)
+      - name: GitGuardian path scan (recursive, verbose)
+        run: ggshield secret scan path . --recursive --verbose
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+      # Optional: Full history scan (slow on big repos; uncomment to test history)
+      # - name: GitGuardian full history scan
+      #   run: ggshield secret scan repo . --verbose
+      #   env:
+      #     GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+``
